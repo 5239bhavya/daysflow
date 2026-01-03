@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, User, Lock, Mail, Phone, Building } from 'lucide-react';
+import { Loader2, User, Lock, Mail, Phone, Building, ArrowLeft } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 
 const signupSchema = z.object({
@@ -26,11 +27,18 @@ const signupSchema = z.object({
   path: ['confirmPassword'],
 });
 
+function generateVerificationCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 export default function SignUp() {
-  const { user, signUp } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<'form' | 'verify'>('form');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [enteredCode, setEnteredCode] = useState('');
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -61,34 +69,151 @@ export default function SignUp() {
     setLoading(true);
 
     try {
-      const { error } = await signUp(formData.email, formData.password, {
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        phone: formData.phone,
-        role: formData.role,
+      // Check if email already exists
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('email', formData.email)
+        .maybeSingle();
+
+      if (existingUser) {
+        toast({
+          title: 'Email Already Registered',
+          description: 'This email is already registered. Please login instead.',
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Generate verification code
+      const code = generateVerificationCode();
+      setVerificationCode(code);
+
+      // Store verification data in database
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+
+      const { error: insertError } = await supabase
+        .from('email_verifications')
+        .insert({
+          email: formData.email,
+          code: code,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          phone: formData.phone,
+          password_hash: formData.password, // Stored temporarily, will be used to create user
+          role: formData.role,
+          expires_at: expiresAt,
+        });
+
+      if (insertError) {
+        throw new Error('Failed to create verification request');
+      }
+
+      // Send verification email
+      const { data, error } = await supabase.functions.invoke('send-verification-email', {
+        body: {
+          email: formData.email,
+          firstName: formData.firstName,
+          verificationCode: code,
+        },
       });
 
       if (error) {
-        let message = error.message;
-        if (message.includes('already registered')) {
-          message = 'This email is already registered. Please login instead.';
-        }
-        toast({
-          title: 'Sign Up Failed',
-          description: message,
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Account Created!',
-          description: 'You can now login with your credentials.',
-        });
-        navigate('/login');
+        throw new Error('Failed to send verification email');
       }
+
+      toast({
+        title: 'Verification Email Sent',
+        description: 'Please check your email for the verification code.',
+      });
+
+      setStep('verify');
     } catch (error: any) {
       toast({
-        title: 'Sign Up Failed',
+        title: 'Error',
         description: error.message || 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (enteredCode.length !== 6) {
+      toast({
+        title: 'Invalid Code',
+        description: 'Please enter the 6-digit verification code.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-email-code', {
+        body: {
+          email: formData.email,
+          code: enteredCode,
+        },
+      });
+
+      if (error || !data?.success) {
+        throw new Error(data?.error || 'Verification failed');
+      }
+
+      toast({
+        title: 'Email Verified!',
+        description: 'Your account has been created. You can now login.',
+      });
+
+      navigate('/login');
+    } catch (error: any) {
+      toast({
+        title: 'Verification Failed',
+        description: error.message || 'Invalid or expired code',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setLoading(true);
+    try {
+      const code = generateVerificationCode();
+      setVerificationCode(code);
+
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+      // Update verification record
+      await supabase
+        .from('email_verifications')
+        .update({ code, expires_at: expiresAt })
+        .eq('email', formData.email);
+
+      // Resend email
+      await supabase.functions.invoke('send-verification-email', {
+        body: {
+          email: formData.email,
+          firstName: formData.firstName,
+          verificationCode: code,
+        },
+      });
+
+      toast({
+        title: 'Code Resent',
+        description: 'A new verification code has been sent to your email.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to resend code. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -100,6 +225,68 @@ export default function SignUp() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // Verification step
+  if (step === 'verify') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-muted/30 p-4">
+        <Card className="w-full max-w-md shadow-lg">
+          <CardHeader className="text-center pb-2">
+            <CardTitle className="text-3xl font-semibold text-primary">Verify Email</CardTitle>
+            <CardDescription className="text-base">
+              Enter the 6-digit code sent to<br />
+              <span className="font-medium text-foreground">{formData.email}</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <form onSubmit={handleVerify} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="code" className="text-sm font-medium">Verification Code</Label>
+                <Input
+                  id="code"
+                  type="text"
+                  placeholder="000000"
+                  value={enteredCode}
+                  onChange={(e) => setEnteredCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="text-center text-2xl font-mono tracking-widest h-14"
+                  maxLength={6}
+                  required
+                />
+              </div>
+
+              <Button type="submit" className="w-full h-11 text-base font-medium" disabled={loading}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Verify Email
+              </Button>
+
+              <div className="text-center space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Didn't receive the code?{' '}
+                  <button
+                    type="button"
+                    onClick={handleResendCode}
+                    className="text-primary hover:underline font-medium"
+                    disabled={loading}
+                  >
+                    Resend
+                  </button>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setStep('form')}
+                  className="text-sm text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 mx-auto"
+                >
+                  <ArrowLeft className="h-3 w-3" />
+                  Back to sign up
+                </button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Sign up form
   return (
     <div className="flex items-center justify-center min-h-screen bg-muted/30 p-4">
       <Card className="w-full max-w-md shadow-lg">
