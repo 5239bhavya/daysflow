@@ -14,6 +14,11 @@ interface Profile {
   department: string | null;
   avatar_url: string | null;
   company_id: string | null;
+  address: string | null;
+  date_of_birth: string | null;
+  hire_date: string | null;
+  job_title: string | null;
+  basic_salary: number | null;
   created_at: string;
 }
 
