@@ -36,9 +36,10 @@ export default function SignUp() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'form' | 'verify'>('form');
+  const [step, setStep] = useState<'form' | 'verify' | 'success'>('form');
   const [verificationCode, setVerificationCode] = useState('');
   const [enteredCode, setEnteredCode] = useState('');
+  const [generatedEmployeeId, setGeneratedEmployeeId] = useState('');
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -172,14 +173,24 @@ export default function SignUp() {
           title: 'Already Registered',
           description: 'This email is already registered. Redirecting to login...',
         });
+        navigate('/login');
       } else {
-        toast({
-          title: 'Email Verified!',
-          description: 'Your account has been created. You can now login.',
-        });
+        // Show success screen with employee ID
+        if (data?.employeeId) {
+          setGeneratedEmployeeId(data.employeeId);
+          setStep('success');
+          toast({
+            title: 'Account Created!',
+            description: 'Your ID has been sent to your email.',
+          });
+        } else {
+          toast({
+            title: 'Email Verified!',
+            description: 'Your account has been created. You can now login.',
+          });
+          navigate('/login');
+        }
       }
-
-      navigate('/login');
     } catch (error: any) {
       toast({
         title: 'Verification Failed',
@@ -232,6 +243,44 @@ export default function SignUp() {
   const updateField = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  // Success step - show employee ID
+  if (step === 'success') {
+    const roleLabel = formData.role === 'admin' ? 'Administrator' : 'Employee';
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-muted/30 p-4">
+        <Card className="w-full max-w-md shadow-lg">
+          <CardHeader className="text-center pb-2">
+            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <CardTitle className="text-3xl font-semibold text-primary">Welcome!</CardTitle>
+            <CardDescription className="text-base">
+              Your account has been created successfully
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="bg-muted/50 rounded-lg p-6 text-center mb-6">
+              <p className="text-sm text-muted-foreground mb-2">Your {roleLabel} ID</p>
+              <p className="text-3xl font-bold text-primary tracking-wide">{generatedEmployeeId}</p>
+              <p className="text-xs text-muted-foreground mt-3">
+                This ID has been sent to your email. Use it along with your password to login.
+              </p>
+            </div>
+            
+            <Button 
+              onClick={() => navigate('/login')} 
+              className="w-full h-11 text-base font-medium"
+            >
+              Go to Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Verification step
   if (step === 'verify') {
