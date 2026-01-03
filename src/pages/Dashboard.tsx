@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { Clock, FileText, Users, BadgeCheck, Circle, Plane } from 'lucide-react';
+import { Clock, FileText, Users, BadgeCheck, Circle, Plane, DollarSign } from 'lucide-react';
 
 interface Stats {
   // Employee stats
@@ -14,10 +14,12 @@ interface Stats {
   absentDays: number;
   paidLeaveBalance: number;
   sickLeaveBalance: number;
+  latestNetSalary: number | null;
   // Admin stats
   totalEmployees?: number;
   todayPresentCount?: number;
   pendingRequests?: number;
+  totalPayroll?: number;
 }
 
 export default function Dashboard() {
@@ -30,9 +32,11 @@ export default function Dashboard() {
     absentDays: 0,
     paidLeaveBalance: 12,
     sickLeaveBalance: 6,
+    latestNetSalary: null,
     totalEmployees: 0,
     todayPresentCount: 0,
     pendingRequests: 0,
+    totalPayroll: 0,
   });
 
   useEffect(() => {
@@ -41,32 +45,50 @@ export default function Dashboard() {
 
       const today = new Date().toISOString().split('T')[0];
       const currentMonth = new Date().toISOString().slice(0, 7);
+      const currentMonthNum = new Date().getMonth() + 1;
+      const currentYear = new Date().getFullYear();
 
       if (role === 'admin') {
-        const [employeesRes, todayAttendanceRes, pendingLeavesRes] = await Promise.all([
+        const [employeesRes, todayAttendanceRes, pendingLeavesRes, payrollRes] = await Promise.all([
           supabase.from('profiles').select('id', { count: 'exact' }),
           supabase.from('attendance').select('id', { count: 'exact' }).eq('date', today).eq('status', 'present'),
           supabase.from('leave_requests').select('id', { count: 'exact' }).eq('status', 'pending'),
+          supabase.from('payroll').select('net_salary').eq('month', currentMonthNum).eq('year', currentYear),
         ]);
+
+        const totalPayroll = payrollRes.data?.reduce((sum, r) => sum + Number(r.net_salary), 0) || 0;
 
         setStats(prev => ({
           ...prev,
           totalEmployees: employeesRes.count || 0,
           todayPresentCount: todayAttendanceRes.count || 0,
           pendingRequests: pendingLeavesRes.count || 0,
+          totalPayroll,
         }));
       } else {
         // Get current month attendance
         const startOfMonth = `${currentMonth}-01`;
         const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
 
-        const { data: attendanceData } = await supabase
-          .from('attendance')
-          .select('status')
-          .eq('employee_id', profile.id)
-          .gte('date', startOfMonth)
-          .lte('date', endOfMonth);
+        const [attendanceRes, payrollRes] = await Promise.all([
+          supabase
+            .from('attendance')
+            .select('status')
+            .eq('employee_id', profile.id)
+            .gte('date', startOfMonth)
+            .lte('date', endOfMonth),
+          supabase
+            .from('payroll')
+            .select('net_salary')
+            .eq('employee_id', profile.id)
+            .eq('status', 'paid')
+            .order('year', { ascending: false })
+            .order('month', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
 
+        const attendanceData = attendanceRes.data;
         const present = attendanceData?.filter(r => r.status === 'present').length || 0;
         const onLeave = attendanceData?.filter(r => r.status === 'on_leave').length || 0;
         const absent = attendanceData?.filter(r => r.status === 'absent').length || 0;
@@ -77,12 +99,20 @@ export default function Dashboard() {
           presentDays: present,
           onLeaveDays: onLeave,
           absentDays: absent,
+          latestNetSalary: payrollRes.data?.net_salary ?? null,
         }));
       }
     };
 
     fetchStats();
   }, [profile, role]);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
 
   // Admin Dashboard
   if (role === 'admin') {
@@ -105,12 +135,18 @@ export default function Dashboard() {
         icon: FileText,
         onClick: () => navigate('/time-off/approvals'),
       },
+      { 
+        title: 'Monthly Payroll', 
+        value: formatCurrency(stats.totalPayroll || 0), 
+        icon: DollarSign,
+        onClick: () => navigate('/payroll/manage'),
+      },
     ];
 
     return (
       <DashboardLayout>
         <div className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {adminCards.map((card) => (
               <Card 
                 key={card.title} 
@@ -183,31 +219,60 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Time Off Summary Card */}
-        <Card 
-          className="shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => navigate('/time-off')}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              Time Off Summary
-            </CardTitle>
-            <CardDescription>Your leave balance</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 pt-2">
-              <div className="p-4 rounded-lg bg-muted/50">
-                <p className="text-2xl font-semibold">{stats.paidLeaveBalance} days</p>
-                <p className="text-sm text-muted-foreground">Paid Time Off</p>
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Time Off Summary Card */}
+          <Card 
+            className="shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => navigate('/time-off')}
+          >
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                Time Off Summary
+              </CardTitle>
+              <CardDescription>Your leave balance</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-2xl font-semibold">{stats.paidLeaveBalance} days</p>
+                  <p className="text-sm text-muted-foreground">Paid Time Off</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-2xl font-semibold">{stats.sickLeaveBalance} days</p>
+                  <p className="text-sm text-muted-foreground">Sick Leave</p>
+                </div>
               </div>
-              <div className="p-4 rounded-lg bg-muted/50">
-                <p className="text-2xl font-semibold">{stats.sickLeaveBalance} days</p>
-                <p className="text-sm text-muted-foreground">Sick Leave</p>
+            </CardContent>
+          </Card>
+
+          {/* Payroll Card */}
+          <Card 
+            className="shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => navigate('/payroll')}
+          >
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-primary" />
+                Payroll
+              </CardTitle>
+              <CardDescription>Your salary information</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="pt-2">
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-2xl font-semibold text-primary">
+                    {stats.latestNetSalary !== null 
+                      ? formatCurrency(stats.latestNetSalary) 
+                      : 'No data'
+                    }
+                  </p>
+                  <p className="text-sm text-muted-foreground">Last Net Salary</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Profile Card */}
         <Card 
