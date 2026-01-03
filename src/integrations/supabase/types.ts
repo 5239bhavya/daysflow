@@ -88,6 +88,48 @@ export type Database = {
         }
         Relationships: []
       }
+      email_verifications: {
+        Row: {
+          code: string
+          created_at: string
+          email: string
+          expires_at: string
+          first_name: string
+          id: string
+          last_name: string
+          password_hash: string
+          phone: string | null
+          role: string
+          verified: boolean
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          email: string
+          expires_at: string
+          first_name: string
+          id?: string
+          last_name: string
+          password_hash: string
+          phone?: string | null
+          role?: string
+          verified?: boolean
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          password_hash?: string
+          phone?: string | null
+          role?: string
+          verified?: boolean
+        }
+        Relationships: []
+      }
       leave_requests: {
         Row: {
           attachment_url: string | null
@@ -320,6 +362,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_verifications: { Args: never; Returns: undefined }
       create_notification: {
         Args: {
           p_category?: string
