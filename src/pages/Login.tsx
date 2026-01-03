@@ -1,33 +1,52 @@
-import { useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Lock, Users } from 'lucide-react';
+import { Loader2, User, Lock } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 
 const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email'),
+  employeeId: z.string().min(1, 'Employee ID is required'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
 export default function Login() {
-  const { signIn, user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [email, setEmail] = useState('');
+  const navigate = useNavigate();
+  const [employeeId, setEmployeeId] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [setupComplete, setSetupComplete] = useState<boolean | null>(null);
 
-  if (authLoading) {
+  useEffect(() => {
+    const checkSetup = async () => {
+      const { data } = await supabase
+        .from('companies')
+        .select('id')
+        .limit(1);
+      
+      setSetupComplete(data && data.length > 0);
+    };
+    checkSetup();
+  }, []);
+
+  if (authLoading || setupComplete === null) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-muted/30">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+
+  // If setup not complete, redirect to setup
+  if (!setupComplete) {
+    return <Navigate to="/setup" replace />;
   }
 
   if (user) {
@@ -37,7 +56,7 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const validation = loginSchema.safeParse({ email, password });
+    const validation = loginSchema.safeParse({ employeeId, password });
     if (!validation.success) {
       toast({
         title: 'Validation Error',
@@ -48,21 +67,54 @@ export default function Login() {
     }
 
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
 
-    if (error) {
-      let message = error.message;
-      if (message.includes('Email not confirmed')) {
-        message = 'Please verify your email before logging in. Check your inbox for the verification link.';
-      } else if (message.includes('Invalid login credentials')) {
-        message = 'Invalid email or password. Please try again.';
+    try {
+      // First, find the user's email by their employee ID
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('employee_id', employeeId)
+        .single();
+
+      if (profileError || !profileData) {
+        toast({
+          title: 'Login Failed',
+          description: 'Invalid Employee ID. Please check and try again.',
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
       }
+
+      // Now sign in with the email
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: profileData.email,
+        password: password,
+      });
+
+      if (authError) {
+        let message = authError.message;
+        if (message.includes('Email not confirmed')) {
+          message = 'Please verify your email before logging in.';
+        } else if (message.includes('Invalid login credentials')) {
+          message = 'Invalid password. Please try again.';
+        }
+        toast({
+          title: 'Login Failed',
+          description: message,
+          variant: 'destructive',
+        });
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (error: any) {
       toast({
         title: 'Login Failed',
-        description: message,
+        description: error.message || 'An unexpected error occurred',
         variant: 'destructive',
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -76,16 +128,16 @@ export default function Login() {
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+              <Label htmlFor="employeeId" className="text-sm font-medium">Admin ID / Employee ID</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
+                  id="employeeId"
+                  type="text"
+                  placeholder="e.g. ADM-2025-001 or EMP-2025-001"
+                  value={employeeId}
+                  onChange={(e) => setEmployeeId(e.target.value.toUpperCase())}
+                  className="pl-10 font-mono"
                   required
                 />
               </div>
@@ -115,12 +167,6 @@ export default function Login() {
               Login
             </Button>
           </form>
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            Don't have an account?{' '}
-            <Link to="/signup" className="text-primary font-medium hover:underline">
-              Sign up
-            </Link>
-          </div>
         </CardContent>
       </Card>
     </div>

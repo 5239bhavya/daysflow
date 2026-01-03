@@ -13,6 +13,7 @@ interface Profile {
   employee_id: string;
   department: string | null;
   avatar_url: string | null;
+  company_id: string | null;
   created_at: string;
 }
 

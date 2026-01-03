@@ -16,28 +16,43 @@ export type Database = {
     Tables: {
       attendance: {
         Row: {
+          check_in: string | null
+          check_out: string | null
           date: string
           employee_id: string
+          extra_hours: number | null
           id: string
           is_half_day: boolean | null
           marked_at: string | null
+          remarks: string | null
           status: string
+          work_hours: number | null
         }
         Insert: {
+          check_in?: string | null
+          check_out?: string | null
           date?: string
           employee_id: string
+          extra_hours?: number | null
           id?: string
           is_half_day?: boolean | null
           marked_at?: string | null
+          remarks?: string | null
           status: string
+          work_hours?: number | null
         }
         Update: {
+          check_in?: string | null
+          check_out?: string | null
           date?: string
           employee_id?: string
+          extra_hours?: number | null
           id?: string
           is_half_day?: boolean | null
           marked_at?: string | null
+          remarks?: string | null
           status?: string
+          work_hours?: number | null
         }
         Relationships: [
           {
@@ -49,8 +64,33 @@ export type Database = {
           },
         ]
       }
+      companies: {
+        Row: {
+          created_at: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          setup_complete: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          logo_url?: string | null
+          name: string
+          setup_complete?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          setup_complete?: boolean | null
+        }
+        Relationships: []
+      }
       leave_requests: {
         Row: {
+          attachment_url: string | null
           created_at: string | null
           employee_id: string
           from_date: string
@@ -60,8 +100,10 @@ export type Database = {
           reason: string | null
           status: string
           to_date: string
+          total_days: number | null
         }
         Insert: {
+          attachment_url?: string | null
           created_at?: string | null
           employee_id: string
           from_date: string
@@ -71,8 +113,10 @@ export type Database = {
           reason?: string | null
           status?: string
           to_date: string
+          total_days?: number | null
         }
         Update: {
+          attachment_url?: string | null
           created_at?: string | null
           employee_id?: string
           from_date?: string
@@ -82,6 +126,7 @@ export type Database = {
           reason?: string | null
           status?: string
           to_date?: string
+          total_days?: number | null
         }
         Relationships: [
           {
@@ -96,6 +141,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          company_id: string | null
           created_at: string | null
           department: string | null
           email: string
@@ -107,6 +153,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          company_id?: string | null
           created_at?: string | null
           department?: string | null
           email: string
@@ -118,6 +165,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          company_id?: string | null
           created_at?: string | null
           department?: string | null
           email?: string
@@ -127,7 +175,15 @@ export type Database = {
           last_name?: string
           phone?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -152,6 +208,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_admin_id: { Args: never; Returns: string }
       generate_employee_id: { Args: never; Returns: string }
       has_role: {
         Args: {

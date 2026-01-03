@@ -8,7 +8,8 @@ import {
   BadgeCheck, 
   Users, 
   UserCircle,
-  LogOut
+  LogOut,
+  UserPlus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -19,16 +20,16 @@ export function Sidebar() {
   const employeeLinks = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/attendance', icon: Clock, label: 'Attendance' },
-    { to: '/leave/apply', icon: FileText, label: 'Apply Leave' },
-    { to: '/leave/status', icon: BadgeCheck, label: 'Leave Status' },
+    { to: '/time-off', icon: FileText, label: 'Time Off' },
     { to: '/profile', icon: UserCircle, label: 'Profile' },
   ];
 
   const adminLinks = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/employees', icon: Users, label: 'Employees' },
-    { to: '/attendance/records', icon: Clock, label: 'Attendance Records' },
-    { to: '/leave/approvals', icon: FileText, label: 'Leave Requests' },
+    { to: '/employees/create', icon: UserPlus, label: 'Create Employee' },
+    { to: '/attendance/manage', icon: Clock, label: 'Attendance' },
+    { to: '/time-off/approvals', icon: FileText, label: 'Time Off Requests' },
     { to: '/profile', icon: UserCircle, label: 'Profile' },
   ];
 
