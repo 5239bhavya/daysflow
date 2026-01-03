@@ -74,6 +74,21 @@ export default function CreateEmployee() {
       // Use a generated email if not provided
       const email = formData.email || `emp-${Date.now()}@dayflow.internal`;
 
+      // Get company name for custom employee ID
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('name')
+        .limit(1)
+        .single();
+
+      // Generate custom employee ID using the RPC function
+      const { data: customEmployeeId } = await supabase.rpc('generate_custom_employee_id', {
+        p_first_name: firstName,
+        p_last_name: lastName,
+        p_company_name: companyData?.name || null,
+        p_hire_year: new Date().getFullYear(),
+      });
+
       // Create employee user with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email,
@@ -98,27 +113,17 @@ export default function CreateEmployee() {
       // Wait for the trigger to create the profile
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Get the generated employee ID
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('employee_id')
-        .eq('id', authData.user.id)
-        .single();
-
-      if (profileError) {
-        console.error('Error fetching profile:', profileError);
-      }
-
-      // Update with department and company_id
+      // Update with custom employee ID, department and company_id
       await supabase
         .from('profiles')
         .update({
+          employee_id: customEmployeeId,
           department: formData.department,
           company_id: profile?.company_id || null,
         })
         .eq('id', authData.user.id);
 
-      const employeeId = profileData?.employee_id || 'EMP-XXXX-XXX';
+      const employeeId = customEmployeeId || 'EMP-XXXX-XXX';
 
       setCreatedEmployee({
         employeeId,
