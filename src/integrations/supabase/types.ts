@@ -138,40 +138,152 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll: {
+        Row: {
+          allowances: number
+          basic_salary: number
+          created_at: string
+          deductions: number
+          employee_id: string
+          id: string
+          month: number
+          net_salary: number | null
+          paid_date: string | null
+          remarks: string | null
+          status: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          allowances?: number
+          basic_salary?: number
+          created_at?: string
+          deductions?: number
+          employee_id: string
+          id?: string
+          month: number
+          net_salary?: number | null
+          paid_date?: string | null
+          remarks?: string | null
+          status?: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          allowances?: number
+          basic_salary?: number
+          created_at?: string
+          deductions?: number
+          employee_id?: string
+          id?: string
+          month?: number
+          net_salary?: number | null
+          paid_date?: string | null
+          remarks?: string | null
+          status?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
+          address: string | null
           avatar_url: string | null
+          basic_salary: number | null
           company_id: string | null
           created_at: string | null
+          date_of_birth: string | null
           department: string | null
           email: string
           employee_id: string
           first_name: string
+          hire_date: string | null
           id: string
+          job_title: string | null
           last_name: string
           phone: string | null
         }
         Insert: {
+          address?: string | null
           avatar_url?: string | null
+          basic_salary?: number | null
           company_id?: string | null
           created_at?: string | null
+          date_of_birth?: string | null
           department?: string | null
           email: string
           employee_id: string
           first_name: string
+          hire_date?: string | null
           id: string
+          job_title?: string | null
           last_name: string
           phone?: string | null
         }
         Update: {
+          address?: string | null
           avatar_url?: string | null
+          basic_salary?: number | null
           company_id?: string | null
           created_at?: string | null
+          date_of_birth?: string | null
           department?: string | null
           email?: string
           employee_id?: string
           first_name?: string
+          hire_date?: string | null
           id?: string
+          job_title?: string | null
           last_name?: string
           phone?: string | null
         }
@@ -208,6 +320,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_notification: {
+        Args: {
+          p_category?: string
+          p_message: string
+          p_title: string
+          p_type?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       generate_admin_id: { Args: never; Returns: string }
       generate_employee_id: { Args: never; Returns: string }
       has_role: {
