@@ -83,12 +83,13 @@ export default function SignUp() {
         variant: 'destructive',
       });
     } else {
+      // Store email for resend functionality
+      sessionStorage.setItem('pendingVerificationEmail', formData.email);
       toast({
-        title: 'Account Created!',
-        description: 'You have been signed up successfully. Redirecting...',
+        title: 'Verification Email Sent!',
+        description: 'Please check your inbox and verify your email to continue.',
       });
-      // Auto-confirm is enabled, so user is automatically logged in
-      navigate('/dashboard');
+      navigate('/verify-email');
     }
   };
 
