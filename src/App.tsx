@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 // Pages
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import CompanySetup from "./pages/CompanySetup";
 import VerifyEmail from "./pages/VerifyEmail";
@@ -33,7 +34,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/setup" element={<CompanySetup />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
