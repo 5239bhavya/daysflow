@@ -346,11 +346,20 @@ export default function SignUp() {
   // Sign up form
   return (
     <div className="flex items-center justify-center min-h-screen bg-muted/30 p-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="text-center pb-2">
-          <CardTitle className="text-3xl font-semibold text-primary">Dayflow</CardTitle>
-          <CardDescription className="text-base">Create your account</CardDescription>
-        </CardHeader>
+      <div className="w-full max-w-md">
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/')}
+          className="mb-4 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Home
+        </Button>
+        <Card className="shadow-lg">
+          <CardHeader className="text-center pb-2">
+            <CardTitle className="text-3xl font-semibold text-primary">Dayflow</CardTitle>
+            <CardDescription className="text-base">Create your account</CardDescription>
+          </CardHeader>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -479,6 +488,7 @@ export default function SignUp() {
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

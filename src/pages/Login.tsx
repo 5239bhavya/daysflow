@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, User, Lock } from 'lucide-react';
+import { Loader2, User, Lock, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 
@@ -102,11 +102,20 @@ export default function Login() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-muted/30 p-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="text-center pb-2">
-          <CardTitle className="text-3xl font-semibold text-primary">Dayflow</CardTitle>
-          <CardDescription className="text-base">Human Resource Management System</CardDescription>
-        </CardHeader>
+      <div className="w-full max-w-md">
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/')}
+          className="mb-4 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Home
+        </Button>
+        <Card className="shadow-lg">
+          <CardHeader className="text-center pb-2">
+            <CardTitle className="text-3xl font-semibold text-primary">Dayflow</CardTitle>
+            <CardDescription className="text-base">Human Resource Management System</CardDescription>
+          </CardHeader>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
@@ -158,6 +167,7 @@ export default function Login() {
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
