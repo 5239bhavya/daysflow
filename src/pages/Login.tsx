@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -22,31 +22,13 @@ export default function Login() {
   const [employeeId, setEmployeeId] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [setupComplete, setSetupComplete] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    const checkSetup = async () => {
-      const { data } = await supabase
-        .from('companies')
-        .select('id')
-        .limit(1);
-      
-      setSetupComplete(data && data.length > 0);
-    };
-    checkSetup();
-  }, []);
-
-  if (authLoading || setupComplete === null) {
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-muted/30">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
-  }
-
-  // If setup not complete, redirect to setup
-  if (!setupComplete) {
-    return <Navigate to="/setup" replace />;
   }
 
   if (user) {
