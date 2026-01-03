@@ -51,14 +51,11 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // First, find the user's email by their employee ID
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('employee_id', employeeId)
-        .single();
+      // First, find the user's email by their employee ID using RPC function
+      const { data: email, error: lookupError } = await supabase
+        .rpc('get_email_by_employee_id', { p_employee_id: employeeId });
 
-      if (profileError || !profileData) {
+      if (lookupError || !email) {
         toast({
           title: 'Login Failed',
           description: 'Invalid Employee ID. Please check and try again.',
@@ -70,7 +67,7 @@ export default function Login() {
 
       // Now sign in with the email
       const { error: authError } = await supabase.auth.signInWithPassword({
-        email: profileData.email,
+        email: email,
         password: password,
       });
 

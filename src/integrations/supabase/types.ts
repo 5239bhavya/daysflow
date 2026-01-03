@@ -375,6 +375,10 @@ export type Database = {
       }
       generate_admin_id: { Args: never; Returns: string }
       generate_employee_id: { Args: never; Returns: string }
+      get_email_by_employee_id: {
+        Args: { p_employee_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
