@@ -6,14 +6,19 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { 
-  Loader2, Search, UserCircle, Mail, Building, BadgeCheck, 
-  Phone, MapPin, Calendar, Briefcase, DollarSign, X, Plane, Circle
+  Loader2, Search, Mail, Building, BadgeCheck, 
+  Phone, MapPin, Calendar, Briefcase, DollarSign, Plane, Circle,
+  Pencil, Trash2, UserPlus
 } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 
 interface Profile {
@@ -43,46 +48,67 @@ interface AttendanceStatus {
   status: string;
 }
 
+const departments = ['Engineering', 'Design', 'Marketing', 'Sales', 'HR', 'Finance', 'Operations', 'Support'];
+
 export default function Employees() {
   const { role } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const [employees, setEmployees] = useState<(Profile & { role?: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<(Profile & { role?: string }) | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [attendanceMap, setAttendanceMap] = useState<Map<string, string>>(new Map());
+  
+  // Edit form state
+  const [editForm, setEditForm] = useState({
+    first_name: '',
+    last_name: '',
+    phone: '',
+    department: '',
+    job_title: '',
+    address: '',
+    basic_salary: '',
+    date_of_birth: '',
+    hire_date: '',
+  });
 
   if (role !== 'admin') {
     return <Navigate to="/dashboard" replace />;
   }
 
+  const fetchEmployees = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const [profilesRes, rolesRes, attendanceRes] = await Promise.all([
+      supabase.from('profiles').select('*').order('first_name'),
+      supabase.from('user_roles').select('user_id, role'),
+      supabase.from('attendance').select('employee_id, status').eq('date', today),
+    ]);
+
+    if (profilesRes.data && rolesRes.data) {
+      const rolesMap = new Map(rolesRes.data.map((r: UserRole) => [r.user_id, r.role]));
+      const enriched = profilesRes.data.map((emp: Profile) => ({
+        ...emp,
+        role: rolesMap.get(emp.id) || 'employee',
+      }));
+      setEmployees(enriched);
+    }
+
+    if (attendanceRes.data) {
+      const attMap = new Map(attendanceRes.data.map((a: AttendanceStatus) => [a.employee_id, a.status]));
+      setAttendanceMap(attMap);
+    }
+
+    setLoading(false);
+  };
+
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
-
-    const fetchEmployees = async () => {
-      const [profilesRes, rolesRes, attendanceRes] = await Promise.all([
-        supabase.from('profiles').select('*').order('first_name'),
-        supabase.from('user_roles').select('user_id, role'),
-        supabase.from('attendance').select('employee_id, status').eq('date', today),
-      ]);
-
-      if (profilesRes.data && rolesRes.data) {
-        const rolesMap = new Map(rolesRes.data.map((r: UserRole) => [r.user_id, r.role]));
-        const enriched = profilesRes.data.map((emp: Profile) => ({
-          ...emp,
-          role: rolesMap.get(emp.id) || 'employee',
-        }));
-        setEmployees(enriched);
-      }
-
-      // Create attendance map
-      if (attendanceRes.data) {
-        const attMap = new Map(attendanceRes.data.map((a: AttendanceStatus) => [a.employee_id, a.status]));
-        setAttendanceMap(attMap);
-      }
-
-      setLoading(false);
-    };
 
     fetchEmployees();
 
@@ -98,7 +124,6 @@ export default function Employees() {
           filter: `date=eq.${today}`,
         },
         (payload) => {
-          console.log('Attendance change:', payload);
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const newRecord = payload.new as AttendanceStatus;
             setAttendanceMap((prev) => {
@@ -126,6 +151,100 @@ export default function Employees() {
   const handleCardClick = (employee: Profile & { role?: string }) => {
     setSelectedEmployee(employee);
     setDetailsOpen(true);
+  };
+
+  const handleEditClick = (employee: Profile & { role?: string }) => {
+    setSelectedEmployee(employee);
+    setEditForm({
+      first_name: employee.first_name || '',
+      last_name: employee.last_name || '',
+      phone: employee.phone || '',
+      department: employee.department || '',
+      job_title: employee.job_title || '',
+      address: employee.address || '',
+      basic_salary: employee.basic_salary?.toString() || '',
+      date_of_birth: employee.date_of_birth || '',
+      hire_date: employee.hire_date || '',
+    });
+    setDetailsOpen(false);
+    setEditOpen(true);
+  };
+
+  const handleDeleteClick = (employee: Profile & { role?: string }) => {
+    setSelectedEmployee(employee);
+    setDetailsOpen(false);
+    setDeleteOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedEmployee) return;
+    
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          first_name: editForm.first_name,
+          last_name: editForm.last_name,
+          phone: editForm.phone || null,
+          department: editForm.department || null,
+          job_title: editForm.job_title || null,
+          address: editForm.address || null,
+          basic_salary: editForm.basic_salary ? parseFloat(editForm.basic_salary) : null,
+          date_of_birth: editForm.date_of_birth || null,
+          hire_date: editForm.hire_date || null,
+        })
+        .eq('id', selectedEmployee.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Employee Updated',
+        description: 'Employee details have been saved successfully.',
+      });
+
+      setEditOpen(false);
+      fetchEmployees();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update employee',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedEmployee) return;
+    
+    setSaving(true);
+    try {
+      // Note: This will delete the profile. The auth user would need to be deleted separately via admin API
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', selectedEmployee.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Employee Removed',
+        description: 'Employee has been removed from the system.',
+      });
+
+      setDeleteOpen(false);
+      fetchEmployees();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete employee',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const filteredEmployees = employees.filter((emp) => {
@@ -170,7 +289,6 @@ export default function Employees() {
       );
     }
     
-    // No attendance record for today
     return (
       <div className="absolute top-3 right-3" title="No attendance marked">
         <Circle className="h-4 w-4 text-gray-300" />
@@ -181,24 +299,26 @@ export default function Employees() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Legend */}
-        <div className="flex items-center gap-6 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Circle className="h-3 w-3 fill-green-500 text-green-500" />
-            <span>Present</span>
+        {/* Header with Add Button */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-6 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Circle className="h-3 w-3 fill-green-500 text-green-500" />
+              <span>Present</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Plane className="h-3 w-3 text-blue-500" />
+              <span>On Leave</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Circle className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+              <span>Absent</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Plane className="h-3 w-3 text-blue-500" />
-            <span>On Leave</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Circle className="h-3 w-3 fill-yellow-500 text-yellow-500" />
-            <span>Absent</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Circle className="h-3 w-3 text-gray-300" />
-            <span>Not Marked</span>
-          </div>
+          <Button onClick={() => navigate('/employees/create')} className="gap-2">
+            <UserPlus className="h-4 w-4" />
+            Add Employee
+          </Button>
         </div>
 
         {/* Search Bar */}
@@ -230,7 +350,6 @@ export default function Employees() {
                 {getAttendanceIndicator(employee.id)}
                 <CardContent className="p-6">
                   <div className="flex flex-col items-center text-center">
-                    {/* Avatar */}
                     <Avatar className="h-20 w-20 mb-4">
                       <AvatarImage src={employee.avatar_url || undefined} />
                       <AvatarFallback className="text-xl bg-primary text-primary-foreground">
@@ -238,17 +357,14 @@ export default function Employees() {
                       </AvatarFallback>
                     </Avatar>
 
-                    {/* Name */}
                     <h3 className="font-semibold text-lg text-foreground">
                       {employee.first_name} {employee.last_name}
                     </h3>
 
-                    {/* Employee ID */}
                     <p className="text-sm text-muted-foreground mb-3">
                       {employee.employee_id}
                     </p>
 
-                    {/* Info Items */}
                     <div className="w-full space-y-2 text-left">
                       <div className="flex items-center gap-2 text-sm">
                         <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -282,7 +398,6 @@ export default function Employees() {
             </DialogHeader>
             {selectedEmployee && (
               <div className="space-y-6">
-                {/* Header with Avatar */}
                 <div className="flex items-center gap-4">
                   <Avatar className="h-20 w-20">
                     <AvatarImage src={selectedEmployee.avatar_url || undefined} />
@@ -290,7 +405,7 @@ export default function Employees() {
                       {selectedEmployee.first_name?.[0]}{selectedEmployee.last_name?.[0]}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-xl font-semibold">
                       {selectedEmployee.first_name} {selectedEmployee.last_name}
                     </h3>
@@ -303,7 +418,6 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Contact Information */}
                 <div>
                   <h4 className="text-sm font-semibold text-muted-foreground uppercase mb-3">Contact Information</h4>
                   <div className="grid gap-3">
@@ -324,7 +438,6 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Job Information */}
                 <div>
                   <h4 className="text-sm font-semibold text-muted-foreground uppercase mb-3">Job Information</h4>
                   <div className="grid gap-3">
@@ -343,18 +456,6 @@ export default function Employees() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Hire Date</p>
-                        <p className="font-medium">
-                          {selectedEmployee.hire_date 
-                            ? format(new Date(selectedEmployee.hire_date), 'MMM d, yyyy')
-                            : '-'
-                          }
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
                       <DollarSign className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <p className="text-sm text-muted-foreground">Basic Salary</p>
@@ -366,40 +467,164 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Personal Information */}
-                <div>
-                  <h4 className="text-sm font-semibold text-muted-foreground uppercase mb-3">Personal Information</h4>
-                  <div className="grid gap-3">
-                    <div className="flex items-center gap-3">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Date of Birth</p>
-                        <p className="font-medium">
-                          {selectedEmployee.date_of_birth 
-                            ? format(new Date(selectedEmployee.date_of_birth), 'MMM d, yyyy')
-                            : '-'
-                          }
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Joined</p>
-                        <p className="font-medium">
-                          {selectedEmployee.created_at 
-                            ? format(new Date(selectedEmployee.created_at), 'MMM d, yyyy')
-                            : '-'
-                          }
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 gap-2"
+                    onClick={() => handleEditClick(selectedEmployee)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    className="flex-1 gap-2"
+                    onClick={() => handleDeleteClick(selectedEmployee)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
                 </div>
               </div>
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Edit Employee Modal */}
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Employee</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="first_name">First Name</Label>
+                  <Input
+                    id="first_name"
+                    value={editForm.first_name}
+                    onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="last_name">Last Name</Label>
+                  <Input
+                    id="last_name"
+                    value={editForm.last_name}
+                    onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="department">Department</Label>
+                <Select 
+                  value={editForm.department} 
+                  onValueChange={(value) => setEditForm({ ...editForm, department: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="job_title">Job Title</Label>
+                <Input
+                  id="job_title"
+                  value={editForm.job_title}
+                  onChange={(e) => setEditForm({ ...editForm, job_title: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  value={editForm.address}
+                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="basic_salary">Basic Salary</Label>
+                <Input
+                  id="basic_salary"
+                  type="number"
+                  value={editForm.basic_salary}
+                  onChange={(e) => setEditForm({ ...editForm, basic_salary: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="date_of_birth">Date of Birth</Label>
+                  <Input
+                    id="date_of_birth"
+                    type="date"
+                    value={editForm.date_of_birth}
+                    onChange={(e) => setEditForm({ ...editForm, date_of_birth: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="hire_date">Hire Date</Label>
+                  <Input
+                    id="hire_date"
+                    type="date"
+                    value={editForm.hire_date}
+                    onChange={(e) => setEditForm({ ...editForm, hire_date: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation */}
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Employee</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove <strong>{selectedEmployee?.first_name} {selectedEmployee?.last_name}</strong> ({selectedEmployee?.employee_id}) from the system? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleConfirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );
