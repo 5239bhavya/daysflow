@@ -83,7 +83,12 @@ export default function SignUp() {
         variant: 'destructive',
       });
     } else {
-      navigate('/verify-email');
+      toast({
+        title: 'Account Created!',
+        description: 'You have been signed up successfully. Redirecting...',
+      });
+      // Auto-confirm is enabled, so user is automatically logged in
+      navigate('/dashboard');
     }
   };
 
