@@ -348,6 +348,57 @@ export type Database = {
           },
         ]
       }
+      salary_details: {
+        Row: {
+          account_number: string | null
+          bank_name: string | null
+          break_time: number | null
+          components: Json | null
+          created_at: string | null
+          employee_id: string
+          id: string
+          ifsc_code: string | null
+          pan_no: string | null
+          uan_no: string | null
+          updated_at: string | null
+          wage: number
+          wage_type: string
+          working_days: number | null
+        }
+        Insert: {
+          account_number?: string | null
+          bank_name?: string | null
+          break_time?: number | null
+          components?: Json | null
+          created_at?: string | null
+          employee_id: string
+          id?: string
+          ifsc_code?: string | null
+          pan_no?: string | null
+          uan_no?: string | null
+          updated_at?: string | null
+          wage?: number
+          wage_type?: string
+          working_days?: number | null
+        }
+        Update: {
+          account_number?: string | null
+          bank_name?: string | null
+          break_time?: number | null
+          components?: Json | null
+          created_at?: string | null
+          employee_id?: string
+          id?: string
+          ifsc_code?: string | null
+          pan_no?: string | null
+          uan_no?: string | null
+          updated_at?: string | null
+          wage?: number
+          wage_type?: string
+          working_days?: number | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
