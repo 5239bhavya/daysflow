@@ -51,6 +51,35 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Check if user already exists
+    const { data: existingUsers } = await supabase.auth.admin.listUsers();
+    const userExists = existingUsers?.users?.some(u => u.email === email);
+
+    if (userExists) {
+      console.log("User already exists, marking verification as complete");
+      
+      // Mark verification as complete
+      await supabase
+        .from("email_verifications")
+        .update({ verified: true })
+        .eq("id", verification.id);
+
+      // Clean up old verifications
+      await supabase
+        .from("email_verifications")
+        .delete()
+        .eq("email", email);
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "This email is already registered. Please login instead.",
+          alreadyRegistered: true 
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     // Create the user account using admin API
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: verification.email,
@@ -66,6 +95,24 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (authError) {
       console.error("Error creating user:", authError);
+      
+      // If user exists error, treat as success
+      if (authError.message?.includes("already been registered")) {
+        await supabase
+          .from("email_verifications")
+          .update({ verified: true })
+          .eq("id", verification.id);
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: "Email already registered. Please login.",
+            alreadyRegistered: true 
+          }),
+          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+      
       throw new Error(authError.message);
     }
 

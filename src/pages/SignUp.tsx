@@ -166,10 +166,18 @@ export default function SignUp() {
         throw new Error(data?.error || 'Verification failed');
       }
 
-      toast({
-        title: 'Email Verified!',
-        description: 'Your account has been created. You can now login.',
-      });
+      // Handle case where user already exists
+      if (data?.alreadyRegistered) {
+        toast({
+          title: 'Already Registered',
+          description: 'This email is already registered. Redirecting to login...',
+        });
+      } else {
+        toast({
+          title: 'Email Verified!',
+          description: 'Your account has been created. You can now login.',
+        });
+      }
 
       navigate('/login');
     } catch (error: any) {
