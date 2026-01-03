@@ -150,12 +150,20 @@ export default function CompanySetup() {
 
       if (companyError) throw companyError;
 
-      // 3. Update admin profile with company_id and admin employee_id
+      // 3. Generate custom employee ID using the new function
+      const { data: customIdResult } = await supabase.rpc('generate_custom_employee_id', {
+        p_first_name: firstName,
+        p_last_name: lastName,
+        p_company_name: formData.companyName,
+        p_hire_year: new Date().getFullYear(),
+      });
+
+      // 4. Update admin profile with company_id and custom employee_id
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
           company_id: companyData.id,
-          employee_id: `ADM-${new Date().getFullYear()}-001`,
+          employee_id: customIdResult || `${formData.companyName.split(' ').map(w => w[0]).join('').toUpperCase()}${firstName.slice(0, 2).toUpperCase()}${lastName.slice(0, 2).toUpperCase()}${new Date().getFullYear()}0001`,
         })
         .eq('id', authData.user.id);
 
