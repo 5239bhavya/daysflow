@@ -19,6 +19,8 @@ import EmployeeAttendance from "./pages/EmployeeAttendance";
 import TimeOff from "./pages/TimeOff";
 import TimeOffApprovals from "./pages/TimeOffApprovals";
 import Profile from "./pages/Profile";
+import Payroll from "./pages/Payroll";
+import AdminPayroll from "./pages/AdminPayroll";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,6 +47,8 @@ const App = () => (
             <Route path="/time-off" element={<TimeOff />} />
             <Route path="/time-off/approvals" element={<TimeOffApprovals />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/payroll" element={<Payroll />} />
+            <Route path="/payroll/manage" element={<AdminPayroll />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

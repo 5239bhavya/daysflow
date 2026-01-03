@@ -5,11 +5,11 @@ import {
   LayoutDashboard, 
   Clock, 
   FileText, 
-  BadgeCheck, 
   Users, 
   UserCircle,
   LogOut,
-  UserPlus
+  UserPlus,
+  DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -21,6 +21,7 @@ export function Sidebar() {
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/attendance', icon: Clock, label: 'Attendance' },
     { to: '/time-off', icon: FileText, label: 'Time Off' },
+    { to: '/payroll', icon: DollarSign, label: 'Payroll' },
     { to: '/profile', icon: UserCircle, label: 'Profile' },
   ];
 
@@ -30,6 +31,7 @@ export function Sidebar() {
     { to: '/employees/create', icon: UserPlus, label: 'Create Employee' },
     { to: '/attendance/manage', icon: Clock, label: 'Attendance' },
     { to: '/time-off/approvals', icon: FileText, label: 'Time Off Requests' },
+    { to: '/payroll/manage', icon: DollarSign, label: 'Payroll' },
     { to: '/profile', icon: UserCircle, label: 'Profile' },
   ];
 
