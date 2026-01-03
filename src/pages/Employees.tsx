@@ -404,24 +404,25 @@ export default function Employees() {
 
         {/* Employee Details Modal */}
         <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>Employee Details</DialogTitle>
             </DialogHeader>
             {selectedEmployee && (
-              <div className="space-y-6">
+              <div className="flex-1 overflow-y-auto space-y-5 pr-2">
+                {/* Header with Avatar */}
                 <div className="flex items-center gap-4">
-                  <Avatar className="h-20 w-20">
+                  <Avatar className="h-20 w-20 flex-shrink-0">
                     <AvatarImage src={selectedEmployee.avatar_url || undefined} />
                     <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
                       {selectedEmployee.first_name?.[0]}{selectedEmployee.last_name?.[0]}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-xl font-semibold truncate">
                       {selectedEmployee.first_name} {selectedEmployee.last_name}
                     </h3>
-                    <p className="text-muted-foreground font-mono">{selectedEmployee.employee_id}</p>
+                    <p className="text-muted-foreground font-mono text-sm">{selectedEmployee.employee_id}</p>
                     <Badge variant={selectedEmployee.role === 'admin' ? 'default' : 'secondary'} className="capitalize mt-1">
                       {selectedEmployee.role}
                     </Badge>
@@ -430,48 +431,61 @@ export default function Employees() {
 
                 <Separator />
 
+                {/* Contact Information */}
                 <div>
                   <h4 className="text-sm font-semibold text-muted-foreground uppercase mb-3">Contact Information</h4>
-                  <div className="grid gap-3">
-                    <div className="flex items-center gap-3">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedEmployee.email}</span>
+                  <div className="grid gap-2.5">
+                    <div className="flex items-center gap-3 text-sm">
+                      <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate">{selectedEmployee.email}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex items-center gap-3 text-sm">
+                      <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <span>{selectedEmployee.phone || '-'}</span>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <span>{selectedEmployee.address || '-'}</span>
+                    <div className="flex items-start gap-3 text-sm">
+                      <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                      <span className="break-words">{selectedEmployee.address || '-'}</span>
                     </div>
                   </div>
                 </div>
 
                 <Separator />
 
+                {/* Job Information */}
                 <div>
                   <h4 className="text-sm font-semibold text-muted-foreground uppercase mb-3">Job Information</h4>
-                  <div className="grid gap-3">
-                    <div className="flex items-center gap-3">
-                      <Building className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Department</p>
-                        <p className="font-medium">{selectedEmployee.department || '-'}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-start gap-2">
+                      <Building className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">Department</p>
+                        <p className="font-medium text-sm truncate">{selectedEmployee.department || '-'}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Briefcase className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Job Title</p>
-                        <p className="font-medium">{selectedEmployee.job_title || '-'}</p>
+                    <div className="flex items-start gap-2">
+                      <Briefcase className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">Job Title</p>
+                        <p className="font-medium text-sm truncate">{selectedEmployee.job_title || '-'}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Basic Salary</p>
-                        <p className="font-medium">{formatCurrency(selectedEmployee.basic_salary)}</p>
+                    <div className="flex items-start gap-2">
+                      <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">Salary</p>
+                        <p className="font-medium text-sm">{formatCurrency(selectedEmployee.basic_salary)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">Hire Date</p>
+                        <p className="font-medium text-sm">
+                          {selectedEmployee.hire_date 
+                            ? format(new Date(selectedEmployee.hire_date), 'MMM d, yyyy')
+                            : '-'}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -479,29 +493,27 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* About & Skills */}
+                {/* Profile - About, Skills, Certifications */}
                 <div>
                   <h4 className="text-sm font-semibold text-muted-foreground uppercase mb-3">Profile</h4>
-                  <div className="grid gap-3">
+                  <div className="space-y-3">
                     <div>
-                      <p className="text-sm text-muted-foreground">About</p>
-                      <p className="font-medium">{selectedEmployee.about || '-'}</p>
+                      <p className="text-xs text-muted-foreground mb-1">About</p>
+                      <p className="text-sm">{selectedEmployee.about || '-'}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Skills</p>
-                      <p className="font-medium">{selectedEmployee.skill || '-'}</p>
+                      <p className="text-xs text-muted-foreground mb-1">Skills</p>
+                      <p className="text-sm">{selectedEmployee.skill || '-'}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Certifications</p>
-                      <p className="font-medium">{selectedEmployee.certification || '-'}</p>
+                      <p className="text-xs text-muted-foreground mb-1">Certifications</p>
+                      <p className="text-sm">{selectedEmployee.certification || '-'}</p>
                     </div>
                   </div>
                 </div>
 
-                <Separator />
-
                 {/* Action Buttons */}
-                <div className="flex gap-3">
+                <div className="flex gap-3 pt-2 pb-1">
                   <Button 
                     variant="outline" 
                     className="flex-1 gap-2"
