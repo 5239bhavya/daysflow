@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate, useLocation, Link } from 'react-router-dom';
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { NotificationBell } from '@/components/NotificationBell';
+import { supabase } from '@/integrations/supabase/client';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -31,8 +32,55 @@ const pageTitles: Record<string, string> = {
 };
 
 export function DashboardLayout({ children, title }: DashboardLayoutProps) {
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut, role } = useAuth();
   const location = useLocation();
+  const [isOnline, setIsOnline] = useState(true);
+
+  // Track admin online status using Supabase Realtime Presence
+  useEffect(() => {
+    if (!user || role !== 'admin') return;
+
+    const channel = supabase.channel('admin-presence', {
+      config: {
+        presence: {
+          key: user.id,
+        },
+      },
+    });
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        setIsOnline(true);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            user_id: user.id,
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+
+    // Handle visibility change to update presence
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        setIsOnline(true);
+        await channel.track({
+          user_id: user.id,
+          online_at: new Date().toISOString(),
+        });
+      } else {
+        setIsOnline(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      supabase.removeChannel(channel);
+    };
+  }, [user, role]);
 
   if (loading) {
     return (
@@ -62,10 +110,21 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-sm font-medium text-primary">
-                      {profile?.first_name?.[0]}{profile?.last_name?.[0]}
-                    </span>
+                  <div className="relative">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-sm font-medium text-primary">
+                        {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                      </span>
+                    </div>
+                    {/* Online/Offline indicator for admin */}
+                    {role === 'admin' && (
+                      <span 
+                        className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background ${
+                          isOnline ? 'bg-green-500' : 'bg-red-500'
+                        }`}
+                        title={isOnline ? 'Online' : 'Offline'}
+                      />
+                    )}
                   </div>
                   <span className="text-sm font-medium">{profile?.first_name}</span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />

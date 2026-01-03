@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Loader2, Search, UserCircle, Mail, Building, BadgeCheck, 
-  Phone, MapPin, Calendar, Briefcase, DollarSign, X 
+  Phone, MapPin, Calendar, Briefcase, DollarSign, X, Plane, Circle
 } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -38,6 +38,11 @@ interface UserRole {
   role: string;
 }
 
+interface AttendanceStatus {
+  employee_id: string;
+  status: string;
+}
+
 export default function Employees() {
   const { role } = useAuth();
   const [employees, setEmployees] = useState<(Profile & { role?: string })[]>([]);
@@ -45,6 +50,7 @@ export default function Employees() {
   const [search, setSearch] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<(Profile & { role?: string }) | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [attendanceMap, setAttendanceMap] = useState<Map<string, string>>(new Map());
 
   if (role !== 'admin') {
     return <Navigate to="/dashboard" replace />;
@@ -52,9 +58,12 @@ export default function Employees() {
 
   useEffect(() => {
     const fetchEmployees = async () => {
-      const [profilesRes, rolesRes] = await Promise.all([
+      const today = new Date().toISOString().split('T')[0];
+      
+      const [profilesRes, rolesRes, attendanceRes] = await Promise.all([
         supabase.from('profiles').select('*').order('first_name'),
         supabase.from('user_roles').select('user_id, role'),
+        supabase.from('attendance').select('employee_id, status').eq('date', today),
       ]);
 
       if (profilesRes.data && rolesRes.data) {
@@ -65,6 +74,13 @@ export default function Employees() {
         }));
         setEmployees(enriched);
       }
+
+      // Create attendance map
+      if (attendanceRes.data) {
+        const attMap = new Map(attendanceRes.data.map((a: AttendanceStatus) => [a.employee_id, a.status]));
+        setAttendanceMap(attMap);
+      }
+
       setLoading(false);
     };
 
@@ -95,9 +111,60 @@ export default function Employees() {
     }).format(amount);
   };
 
+  const getAttendanceIndicator = (employeeId: string) => {
+    const status = attendanceMap.get(employeeId);
+    
+    if (status === 'present') {
+      return (
+        <div className="absolute top-3 right-3" title="Present">
+          <Circle className="h-4 w-4 fill-green-500 text-green-500" />
+        </div>
+      );
+    } else if (status === 'on_leave') {
+      return (
+        <div className="absolute top-3 right-3" title="On Leave">
+          <Plane className="h-4 w-4 text-blue-500" />
+        </div>
+      );
+    } else if (status === 'absent') {
+      return (
+        <div className="absolute top-3 right-3" title="Absent">
+          <Circle className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+        </div>
+      );
+    }
+    
+    // No attendance record for today
+    return (
+      <div className="absolute top-3 right-3" title="No attendance marked">
+        <Circle className="h-4 w-4 text-gray-300" />
+      </div>
+    );
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Legend */}
+        <div className="flex items-center gap-6 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Circle className="h-3 w-3 fill-green-500 text-green-500" />
+            <span>Present</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Plane className="h-3 w-3 text-blue-500" />
+            <span>On Leave</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Circle className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+            <span>Absent</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Circle className="h-3 w-3 text-gray-300" />
+            <span>Not Marked</span>
+          </div>
+        </div>
+
         {/* Search Bar */}
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -121,9 +188,10 @@ export default function Employees() {
             {filteredEmployees.map((employee) => (
               <Card 
                 key={employee.id} 
-                className="shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                className="shadow-sm hover:shadow-md transition-shadow cursor-pointer relative"
                 onClick={() => handleCardClick(employee)}
               >
+                {getAttendanceIndicator(employee.id)}
                 <CardContent className="p-6">
                   <div className="flex flex-col items-center text-center">
                     {/* Avatar */}
