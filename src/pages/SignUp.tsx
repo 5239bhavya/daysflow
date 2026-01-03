@@ -27,18 +27,12 @@ const signupSchema = z.object({
   path: ['confirmPassword'],
 });
 
-function generateVerificationCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
 export default function SignUp() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'form' | 'verify' | 'success'>('form');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [enteredCode, setEnteredCode] = useState('');
+  const [step, setStep] = useState<'form' | 'success'>('form');
   const [generatedEmployeeId, setGeneratedEmployeeId] = useState('');
   const [formData, setFormData] = useState({
     firstName: '',
@@ -70,169 +64,65 @@ export default function SignUp() {
     setLoading(true);
 
     try {
-      // Check if email already exists
-      const { data: existingUser } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('email', formData.email)
-        .maybeSingle();
+      // Sign up directly with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            phone: formData.phone,
+            role: formData.role,
+          },
+        },
+      });
 
-      if (existingUser) {
-        toast({
-          title: 'Email Already Registered',
-          description: 'This email is already registered. Please login instead.',
-          variant: 'destructive',
-        });
+      if (authError) {
+        if (authError.message.includes('already registered')) {
+          toast({
+            title: 'Email Already Registered',
+            description: 'This email is already registered. Please login instead.',
+            variant: 'destructive',
+          });
+        } else {
+          throw authError;
+        }
         setLoading(false);
         return;
       }
 
-      // Generate verification code
-      const code = generateVerificationCode();
-      setVerificationCode(code);
+      if (authData.user) {
+        // Wait a moment for the trigger to create the profile
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Store verification data in database
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+        // Fetch the generated employee ID
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('employee_id')
+          .eq('id', authData.user.id)
+          .single();
 
-      const { error: insertError } = await supabase
-        .from('email_verifications')
-        .insert({
-          email: formData.email,
-          code: code,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          phone: formData.phone,
-          password_hash: formData.password, // Stored temporarily, will be used to create user
-          role: formData.role,
-          expires_at: expiresAt,
-        });
-
-      if (insertError) {
-        throw new Error('Failed to create verification request');
-      }
-
-      // Send verification email
-      const { data, error } = await supabase.functions.invoke('send-verification-email', {
-        body: {
-          email: formData.email,
-          firstName: formData.firstName,
-          verificationCode: code,
-        },
-      });
-
-      if (error) {
-        throw new Error('Failed to send verification email');
-      }
-
-      toast({
-        title: 'Verification Email Sent',
-        description: 'Please check your email for the verification code.',
-      });
-
-      setStep('verify');
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'An unexpected error occurred',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (enteredCode.length !== 6) {
-      toast({
-        title: 'Invalid Code',
-        description: 'Please enter the 6-digit verification code.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-email-code', {
-        body: {
-          email: formData.email,
-          code: enteredCode,
-        },
-      });
-
-      if (error || !data?.success) {
-        throw new Error(data?.error || 'Verification failed');
-      }
-
-      // Handle case where user already exists
-      if (data?.alreadyRegistered) {
-        toast({
-          title: 'Already Registered',
-          description: 'This email is already registered. Redirecting to login...',
-        });
-        navigate('/login');
-      } else {
-        // Show success screen with employee ID
-        if (data?.employeeId) {
-          setGeneratedEmployeeId(data.employeeId);
+        if (profile?.employee_id) {
+          setGeneratedEmployeeId(profile.employee_id);
           setStep('success');
           toast({
             title: 'Account Created!',
-            description: 'Your ID has been sent to your email.',
+            description: 'Your account has been created successfully.',
           });
         } else {
           toast({
-            title: 'Email Verified!',
-            description: 'Your account has been created. You can now login.',
+            title: 'Account Created!',
+            description: 'You can now login with your email.',
           });
           navigate('/login');
         }
       }
     } catch (error: any) {
       toast({
-        title: 'Verification Failed',
-        description: error.message || 'Invalid or expired code',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendCode = async () => {
-    setLoading(true);
-    try {
-      const code = generateVerificationCode();
-      setVerificationCode(code);
-
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
-      // Update verification record
-      await supabase
-        .from('email_verifications')
-        .update({ code, expires_at: expiresAt })
-        .eq('email', formData.email);
-
-      // Resend email
-      await supabase.functions.invoke('send-verification-email', {
-        body: {
-          email: formData.email,
-          firstName: formData.firstName,
-          verificationCode: code,
-        },
-      });
-
-      toast({
-        title: 'Code Resent',
-        description: 'A new verification code has been sent to your email.',
-      });
-    } catch (error: any) {
-      toast({
         title: 'Error',
-        description: 'Failed to resend code. Please try again.',
+        description: error.message || 'An unexpected error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -266,7 +156,7 @@ export default function SignUp() {
               <p className="text-sm text-muted-foreground mb-2">Your {roleLabel} ID</p>
               <p className="text-3xl font-bold text-primary tracking-wide">{generatedEmployeeId}</p>
               <p className="text-xs text-muted-foreground mt-3">
-                This ID has been sent to your email. Use it along with your password to login.
+                Use this ID along with your password to login.
               </p>
             </div>
             
@@ -276,67 +166,6 @@ export default function SignUp() {
             >
               Go to Login
             </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Verification step
-  if (step === 'verify') {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-muted/30 p-4">
-        <Card className="w-full max-w-md shadow-lg">
-          <CardHeader className="text-center pb-2">
-            <CardTitle className="text-3xl font-semibold text-primary">Verify Email</CardTitle>
-            <CardDescription className="text-base">
-              Enter the 6-digit code sent to<br />
-              <span className="font-medium text-foreground">{formData.email}</span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <form onSubmit={handleVerify} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="code" className="text-sm font-medium">Verification Code</Label>
-                <Input
-                  id="code"
-                  type="text"
-                  placeholder="000000"
-                  value={enteredCode}
-                  onChange={(e) => setEnteredCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="text-center text-2xl font-mono tracking-widest h-14"
-                  maxLength={6}
-                  required
-                />
-              </div>
-
-              <Button type="submit" className="w-full h-11 text-base font-medium" disabled={loading}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Verify Email
-              </Button>
-
-              <div className="text-center space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Didn't receive the code?{' '}
-                  <button
-                    type="button"
-                    onClick={handleResendCode}
-                    className="text-primary hover:underline font-medium"
-                    disabled={loading}
-                  >
-                    Resend
-                  </button>
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setStep('form')}
-                  className="text-sm text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 mx-auto"
-                >
-                  <ArrowLeft className="h-3 w-3" />
-                  Back to sign up
-                </button>
-              </div>
-            </form>
           </CardContent>
         </Card>
       </div>
@@ -360,134 +189,134 @@ export default function SignUp() {
             <CardTitle className="text-3xl font-semibold text-primary">Dayflow</CardTitle>
             <CardDescription className="text-base">Create your account</CardDescription>
           </CardHeader>
-        <CardContent className="pt-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="firstName" className="text-sm font-medium">First Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <CardContent className="pt-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName" className="text-sm font-medium">First Name</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="firstName"
+                      type="text"
+                      placeholder="John"
+                      value={formData.firstName}
+                      onChange={(e) => updateField('firstName', e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName" className="text-sm font-medium">Last Name</Label>
                   <Input
-                    id="firstName"
+                    id="lastName"
                     type="text"
-                    placeholder="John"
-                    value={formData.firstName}
-                    onChange={(e) => updateField('firstName', e.target.value)}
+                    placeholder="Doe"
+                    value={formData.lastName}
+                    onChange={(e) => updateField('lastName', e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="john@company.com"
+                    value={formData.email}
+                    onChange={(e) => updateField('email', e.target.value)}
                     className="pl-10"
                     required
                   />
                 </div>
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="lastName" className="text-sm font-medium">Last Name</Label>
-                <Input
-                  id="lastName"
-                  type="text"
-                  placeholder="Doe"
-                  value={formData.lastName}
-                  onChange={(e) => updateField('lastName', e.target.value)}
-                  required
-                />
+                <Label htmlFor="phone" className="text-sm font-medium">Phone Number</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="+1 (555) 000-0000"
+                    value={formData.phone}
+                    onChange={(e) => updateField('phone', e.target.value)}
+                    className="pl-10"
+                    required
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="john@company.com"
-                  value={formData.email}
-                  onChange={(e) => updateField('email', e.target.value)}
-                  className="pl-10"
-                  required
-                />
+              <div className="space-y-2">
+                <Label htmlFor="role" className="text-sm font-medium">Role</Label>
+                <Select value={formData.role} onValueChange={(value: 'admin' | 'employee') => updateField('role', value)}>
+                  <SelectTrigger className="w-full">
+                    <div className="flex items-center gap-2">
+                      <Building className="h-4 w-4 text-muted-foreground" />
+                      <SelectValue placeholder="Select your role" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="admin">Admin / HR</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="phone" className="text-sm font-medium">Phone Number</Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+1 (555) 000-0000"
-                  value={formData.phone}
-                  onChange={(e) => updateField('phone', e.target.value)}
-                  className="pl-10"
-                  required
-                />
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Create a strong password"
+                    value={formData.password}
+                    onChange={(e) => updateField('password', e.target.value)}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Must be 8+ chars with uppercase, lowercase & number
+                </p>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="role" className="text-sm font-medium">Role</Label>
-              <Select value={formData.role} onValueChange={(value: 'admin' | 'employee') => updateField('role', value)}>
-                <SelectTrigger className="w-full">
-                  <div className="flex items-center gap-2">
-                    <Building className="h-4 w-4 text-muted-foreground" />
-                    <SelectValue placeholder="Select your role" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="employee">Employee</SelectItem>
-                  <SelectItem value="admin">Admin / HR</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Create a strong password"
-                  value={formData.password}
-                  onChange={(e) => updateField('password', e.target.value)}
-                  className="pl-10"
-                  required
-                />
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="Confirm your password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => updateField('confirmPassword', e.target.value)}
+                    className="pl-10"
+                    required
+                  />
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Must be 8+ chars with uppercase, lowercase & number
+
+              <Button type="submit" className="w-full h-11 text-base font-medium" disabled={loading}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create Account
+              </Button>
+
+              <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <Link to="/login" className="text-primary hover:underline font-medium">
+                  Login
+                </Link>
               </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="Confirm your password"
-                  value={formData.confirmPassword}
-                  onChange={(e) => updateField('confirmPassword', e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
-            </div>
-
-            <Button type="submit" className="w-full h-11 text-base font-medium" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Account
-            </Button>
-
-            <p className="text-center text-sm text-muted-foreground">
-              Already have an account?{' '}
-              <Link to="/login" className="text-primary hover:underline font-medium">
-                Login
-              </Link>
-            </p>
-          </form>
-        </CardContent>
-      </Card>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
