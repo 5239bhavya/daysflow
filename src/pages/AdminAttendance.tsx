@@ -109,6 +109,29 @@ export default function AdminAttendance() {
     fetchAttendance();
   }, [selectedDate]);
 
+  // Subscribe to realtime updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin-attendance')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance',
+        },
+        (payload) => {
+          console.log('Attendance update:', payload);
+          fetchAttendance();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedDate]);
+
   const handleMarkAttendance = async (e: React.FormEvent) => {
     e.preventDefault();
     

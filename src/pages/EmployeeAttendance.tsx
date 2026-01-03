@@ -3,9 +3,11 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Calendar, Clock, Circle, Plane } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2, Calendar, Clock, Circle, Plane, LogIn, LogOut } from 'lucide-react';
+import { format, endOfMonth } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface AttendanceRecord {
@@ -24,10 +26,20 @@ interface AttendanceSummary {
   absentDays: number;
 }
 
+interface TodayStatus {
+  hasCheckedIn: boolean;
+  hasCheckedOut: boolean;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  recordId: string | null;
+}
+
 export default function EmployeeAttendance() {
   const { profile } = useAuth();
+  const { toast } = useToast();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -38,6 +50,44 @@ export default function EmployeeAttendance() {
     onLeaveDays: 0,
     absentDays: 0,
   });
+  const [todayStatus, setTodayStatus] = useState<TodayStatus>({
+    hasCheckedIn: false,
+    hasCheckedOut: false,
+    checkInTime: null,
+    checkOutTime: null,
+    recordId: null,
+  });
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const fetchTodayStatus = async () => {
+    if (!profile) return;
+
+    const { data } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('employee_id', profile.id)
+      .eq('date', today)
+      .maybeSingle();
+
+    if (data) {
+      setTodayStatus({
+        hasCheckedIn: !!data.check_in,
+        hasCheckedOut: !!data.check_out,
+        checkInTime: data.check_in,
+        checkOutTime: data.check_out,
+        recordId: data.id,
+      });
+    } else {
+      setTodayStatus({
+        hasCheckedIn: false,
+        hasCheckedOut: false,
+        checkInTime: null,
+        checkOutTime: null,
+        recordId: null,
+      });
+    }
+  };
 
   const fetchAttendance = async () => {
     if (!profile) return;
@@ -60,7 +110,6 @@ export default function EmployeeAttendance() {
     } else {
       setRecords(data || []);
       
-      // Calculate summary
       const present = data?.filter(r => r.status === 'present').length || 0;
       const onLeave = data?.filter(r => r.status === 'on_leave').length || 0;
       const absent = data?.filter(r => r.status === 'absent').length || 0;
@@ -76,8 +125,114 @@ export default function EmployeeAttendance() {
   };
 
   useEffect(() => {
+    fetchTodayStatus();
     fetchAttendance();
   }, [profile, selectedMonth]);
+
+  // Subscribe to realtime updates
+  useEffect(() => {
+    if (!profile) return;
+
+    const channel = supabase
+      .channel('employee-attendance')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance',
+          filter: `employee_id=eq.${profile.id}`,
+        },
+        () => {
+          fetchTodayStatus();
+          fetchAttendance();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile]);
+
+  const handleCheckIn = async () => {
+    if (!profile) return;
+
+    setActionLoading(true);
+    const currentTime = format(new Date(), 'HH:mm:ss');
+
+    try {
+      const { error } = await supabase
+        .from('attendance')
+        .insert({
+          employee_id: profile.id,
+          date: today,
+          status: 'present',
+          check_in: currentTime,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Checked In!',
+        description: `You checked in at ${format(new Date(), 'h:mm a')}`,
+      });
+
+      fetchTodayStatus();
+      fetchAttendance();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to check in',
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCheckOut = async () => {
+    if (!profile || !todayStatus.recordId) return;
+
+    setActionLoading(true);
+    const currentTime = format(new Date(), 'HH:mm:ss');
+
+    try {
+      // Calculate work hours
+      let workHours: number | null = null;
+      if (todayStatus.checkInTime) {
+        const checkIn = new Date(`${today}T${todayStatus.checkInTime}`);
+        const checkOut = new Date(`${today}T${currentTime}`);
+        workHours = Math.round(((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60)) * 100) / 100;
+      }
+
+      const { error } = await supabase
+        .from('attendance')
+        .update({
+          check_out: currentTime,
+          work_hours: workHours,
+        })
+        .eq('id', todayStatus.recordId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Checked Out!',
+        description: `You checked out at ${format(new Date(), 'h:mm a')}. Total: ${workHours}h`,
+      });
+
+      fetchTodayStatus();
+      fetchAttendance();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to check out',
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const getStatusIndicator = (status: string) => {
     switch (status) {
@@ -112,6 +267,69 @@ export default function EmployeeAttendance() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Check In/Out Card */}
+        <Card className="shadow-sm border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+          <CardContent className="p-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold">Today's Attendance</h3>
+                <p className="text-muted-foreground text-sm">
+                  {format(new Date(), 'EEEE, MMMM d, yyyy')}
+                </p>
+                {todayStatus.hasCheckedIn && (
+                  <div className="flex items-center gap-4 mt-2 text-sm">
+                    <span className="text-muted-foreground">
+                      Check-in: <span className="text-foreground font-medium">{todayStatus.checkInTime}</span>
+                    </span>
+                    {todayStatus.hasCheckedOut && (
+                      <span className="text-muted-foreground">
+                        Check-out: <span className="text-foreground font-medium">{todayStatus.checkOutTime}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-3">
+                {!todayStatus.hasCheckedIn ? (
+                  <Button 
+                    size="lg" 
+                    onClick={handleCheckIn} 
+                    disabled={actionLoading}
+                    className="gap-2 bg-green-600 hover:bg-green-700"
+                  >
+                    {actionLoading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <LogIn className="h-5 w-5" />
+                    )}
+                    Check In
+                  </Button>
+                ) : !todayStatus.hasCheckedOut ? (
+                  <Button 
+                    size="lg" 
+                    onClick={handleCheckOut} 
+                    disabled={actionLoading}
+                    variant="destructive"
+                    className="gap-2"
+                  >
+                    {actionLoading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <LogOut className="h-5 w-5" />
+                    )}
+                    Check Out
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-lg">
+                    <Circle className="h-4 w-4 fill-green-600 text-green-600" />
+                    <span className="font-medium">Completed for today</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Summary Cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="shadow-sm">
