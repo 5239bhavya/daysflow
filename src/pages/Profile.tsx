@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,10 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, UserCircle, Lock, Camera, Edit, Save, X, MapPin, Phone, Briefcase, Calendar, Building } from 'lucide-react';
+import { 
+  Loader2, UserCircle, Lock, Camera, Edit, Save, X, 
+  MapPin, Phone, Briefcase, Calendar, Building, Mail 
+} from 'lucide-react';
 import { z } from 'zod';
 import { useAvatarUpload } from '@/hooks/useAvatarUpload';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -22,6 +25,13 @@ const passwordSchema = z.object({
   message: "Passwords don't match",
   path: ['confirmPassword'],
 });
+
+interface ProfileData {
+  phone: string;
+  address: string;
+  date_of_birth: string;
+  job_title: string;
+}
 
 export default function Profile() {
   const { profile, role, updatePassword, refreshProfile } = useAuth();
@@ -38,10 +48,24 @@ export default function Profile() {
   
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [editData, setEditData] = useState({
-    phone: profile?.phone || '',
+  const [editData, setEditData] = useState<ProfileData>({
+    phone: '',
     address: '',
+    date_of_birth: '',
+    job_title: '',
   });
+
+  // Load current profile data into edit form
+  useEffect(() => {
+    if (profile) {
+      setEditData({
+        phone: profile.phone || '',
+        address: (profile as any).address || '',
+        date_of_birth: (profile as any).date_of_birth || '',
+        job_title: (profile as any).job_title || '',
+      });
+    }
+  }, [profile]);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,6 +134,8 @@ export default function Profile() {
       .update({
         phone: editData.phone || null,
         address: editData.address || null,
+        date_of_birth: editData.date_of_birth || null,
+        job_title: editData.job_title || null,
       })
       .eq('id', profile.id);
 
@@ -129,6 +155,16 @@ export default function Profile() {
       setIsEditing(false);
       refreshProfile();
     }
+  };
+
+  const handleStartEditing = () => {
+    setEditData({
+      phone: profile?.phone || '',
+      address: (profile as any)?.address || '',
+      date_of_birth: (profile as any)?.date_of_birth || '',
+      job_title: (profile as any)?.job_title || '',
+    });
+    setIsEditing(true);
   };
 
   return (
@@ -182,7 +218,7 @@ export default function Profile() {
               </div>
               
               {!isEditing && (
-                <Button variant="outline" onClick={() => setIsEditing(true)}>
+                <Button variant="outline" onClick={handleStartEditing}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit Profile
                 </Button>
@@ -209,48 +245,96 @@ export default function Profile() {
             )}
           </CardHeader>
           <CardContent>
-            <div className="grid gap-6 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-sm text-muted-foreground flex items-center gap-2">
-                  <UserCircle className="h-4 w-4" />
-                  Full Name
-                </Label>
-                <p className="font-medium">{profile?.first_name} {profile?.last_name}</p>
+            <div className="grid gap-6">
+              {/* Basic Info - Read Only */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                    <UserCircle className="h-4 w-4" />
+                    Full Name
+                  </Label>
+                  <p className="font-medium">{profile?.first_name} {profile?.last_name}</p>
+                </div>
+                
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    Email
+                  </Label>
+                  <p className="font-medium">{profile?.email}</p>
+                </div>
+                
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Building className="h-4 w-4" />
+                    Department
+                  </Label>
+                  <p className="font-medium">{profile?.department || '-'}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Employee ID
+                  </Label>
+                  <p className="font-medium font-mono">{profile?.employee_id}</p>
+                </div>
               </div>
-              
-              <div className="space-y-1">
-                <Label className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Building className="h-4 w-4" />
-                  Department
-                </Label>
-                <p className="font-medium">{profile?.department || '-'}</p>
+
+              <Separator />
+
+              {/* Editable Fields */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    Phone Number
+                  </Label>
+                  {isEditing ? (
+                    <Input
+                      value={editData.phone}
+                      onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                      placeholder="+1 (555) 000-0000"
+                    />
+                  ) : (
+                    <p className="font-medium">{profile?.phone || '-'}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Date of Birth
+                  </Label>
+                  {isEditing ? (
+                    <Input
+                      type="date"
+                      value={editData.date_of_birth}
+                      onChange={(e) => setEditData({ ...editData, date_of_birth: e.target.value })}
+                    />
+                  ) : (
+                    <p className="font-medium">{(profile as any)?.date_of_birth || '-'}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Briefcase className="h-4 w-4" />
+                    Job Title
+                  </Label>
+                  {isEditing ? (
+                    <Input
+                      value={editData.job_title}
+                      onChange={(e) => setEditData({ ...editData, job_title: e.target.value })}
+                      placeholder="e.g. Software Engineer"
+                    />
+                  ) : (
+                    <p className="font-medium">{(profile as any)?.job_title || '-'}</p>
+                  )}
+                </div>
               </div>
-              
+
               <div className="space-y-1">
-                <Label className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Phone className="h-4 w-4" />
-                  Phone
-                </Label>
-                {isEditing ? (
-                  <Input
-                    value={editData.phone}
-                    onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
-                    placeholder="Enter phone number"
-                  />
-                ) : (
-                  <p className="font-medium">{profile?.phone || '-'}</p>
-                )}
-              </div>
-              
-              <div className="space-y-1">
-                <Label className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Employee ID
-                </Label>
-                <p className="font-medium">{profile?.employee_id}</p>
-              </div>
-              
-              <div className="sm:col-span-2 space-y-1">
                 <Label className="text-sm text-muted-foreground flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
                   Address
@@ -259,11 +343,11 @@ export default function Profile() {
                   <Textarea
                     value={editData.address}
                     onChange={(e) => setEditData({ ...editData, address: e.target.value })}
-                    placeholder="Enter your address"
+                    placeholder="Enter your full address"
                     rows={2}
                   />
                 ) : (
-                  <p className="font-medium">{'-'}</p>
+                  <p className="font-medium">{(profile as any)?.address || '-'}</p>
                 )}
               </div>
             </div>
