@@ -433,6 +433,7 @@ export type Database = {
         }
         Returns: string
       }
+      delete_employee: { Args: { p_user_id: string }; Returns: Json }
       generate_custom_employee_id: {
         Args: {
           p_company_name?: string
