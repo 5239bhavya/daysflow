@@ -1,7 +1,7 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, Link } from 'react-router-dom';
 import { Loader2, ChevronDown, UserCircle, LogOut } from 'lucide-react';
 import {
   DropdownMenu,
@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
+import { NotificationBell } from '@/components/NotificationBell';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -20,13 +20,14 @@ interface DashboardLayoutProps {
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/attendance': 'Attendance',
-  '/attendance/records': 'Attendance Records',
-  '/leave/apply': 'Apply Leave',
-  '/leave/status': 'Leave Status',
-  '/leave/approvals': 'Leave Requests',
+  '/attendance/manage': 'Attendance Management',
+  '/time-off': 'Time Off',
+  '/time-off/approvals': 'Time Off Requests',
   '/employees': 'Employees',
-  '/employees/directory': 'Employee Directory',
+  '/employees/create': 'Create Employee',
   '/profile': 'Profile',
+  '/payroll': 'Payroll',
+  '/payroll/manage': 'Payroll Management',
 };
 
 export function DashboardLayout({ children, title }: DashboardLayoutProps) {
@@ -55,31 +56,35 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
         <header className="h-16 bg-background border-b border-border flex items-center justify-between px-8">
           <h2 className="text-xl font-semibold text-foreground">{pageTitle}</h2>
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-sm font-medium text-primary">
-                    {profile?.first_name?.[0]}{profile?.last_name?.[0]}
-                  </span>
-                </div>
-                <span className="text-sm font-medium">{profile?.first_name}</span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem asChild>
-                <Link to="/profile" className="flex items-center gap-2 cursor-pointer">
-                  <UserCircle className="h-4 w-4" />
-                  My Profile
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={signOut} className="flex items-center gap-2 cursor-pointer text-destructive">
-                <LogOut className="h-4 w-4" />
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-sm font-medium text-primary">
+                      {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                    </span>
+                  </div>
+                  <span className="text-sm font-medium">{profile?.first_name}</span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem asChild>
+                  <Link to="/profile" className="flex items-center gap-2 cursor-pointer">
+                    <UserCircle className="h-4 w-4" />
+                    My Profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={signOut} className="flex items-center gap-2 cursor-pointer text-destructive">
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </header>
 
         {/* Main Content */}
