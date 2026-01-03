@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search, UserCircle, Mail, Building, BadgeCheck } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 
 interface Profile {
@@ -15,6 +15,7 @@ interface Profile {
   phone: string | null;
   employee_id: string;
   department: string | null;
+  avatar_url: string | null;
 }
 
 interface UserRole {
@@ -26,6 +27,7 @@ export default function Employees() {
   const { role } = useAuth();
   const [employees, setEmployees] = useState<(Profile & { role?: string })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   if (role !== 'admin') {
     return <Navigate to="/dashboard" replace />;
@@ -34,7 +36,7 @@ export default function Employees() {
   useEffect(() => {
     const fetchEmployees = async () => {
       const [profilesRes, rolesRes] = await Promise.all([
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabase.from('profiles').select('*').order('first_name'),
         supabase.from('user_roles').select('user_id, role'),
       ]);
 
@@ -52,45 +54,91 @@ export default function Employees() {
     fetchEmployees();
   }, []);
 
+  const filteredEmployees = employees.filter((emp) => {
+    const searchLower = search.toLowerCase();
+    return (
+      emp.first_name.toLowerCase().includes(searchLower) ||
+      emp.last_name.toLowerCase().includes(searchLower) ||
+      emp.email.toLowerCase().includes(searchLower) ||
+      (emp.department?.toLowerCase().includes(searchLower) ?? false) ||
+      emp.employee_id.toLowerCase().includes(searchLower)
+    );
+  });
+
   return (
     <DashboardLayout>
-      <Card className="shadow-sm">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold">All Employees</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : employees.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No employees found.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="uppercase text-xs font-semibold">Employee ID</TableHead>
-                  <TableHead className="uppercase text-xs font-semibold">Name</TableHead>
-                  <TableHead className="uppercase text-xs font-semibold">Email</TableHead>
-                  <TableHead className="uppercase text-xs font-semibold">Department</TableHead>
-                  <TableHead className="uppercase text-xs font-semibold">Role</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {employees.map((employee) => (
-                  <TableRow key={employee.id}>
-                    <TableCell className="font-medium">{employee.employee_id}</TableCell>
-                    <TableCell>{employee.first_name} {employee.last_name}</TableCell>
-                    <TableCell>{employee.email}</TableCell>
-                    <TableCell>{employee.department || '-'}</TableCell>
-                    <TableCell className="capitalize">{employee.role}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        {/* Search Bar */}
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, email, department..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {/* Employee Cards Grid */}
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : filteredEmployees.length === 0 ? (
+          <p className="text-center text-muted-foreground py-12">No employees found.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filteredEmployees.map((employee) => (
+              <Card key={employee.id} className="shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex flex-col items-center text-center">
+                    {/* Avatar */}
+                    <div className="h-20 w-20 rounded-full bg-secondary flex items-center justify-center mb-4">
+                      {employee.avatar_url ? (
+                        <img
+                          src={employee.avatar_url}
+                          alt={`${employee.first_name} ${employee.last_name}`}
+                          className="h-20 w-20 rounded-full object-cover"
+                        />
+                      ) : (
+                        <UserCircle className="h-12 w-12 text-primary" />
+                      )}
+                    </div>
+
+                    {/* Name */}
+                    <h3 className="font-semibold text-lg text-foreground">
+                      {employee.first_name} {employee.last_name}
+                    </h3>
+
+                    {/* Employee ID */}
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {employee.employee_id}
+                    </p>
+
+                    {/* Info Items */}
+                    <div className="w-full space-y-2 text-left">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate text-foreground">{employee.email}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 text-sm">
+                        <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-foreground">{employee.department || 'Not Assigned'}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm">
+                        <BadgeCheck className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="capitalize text-foreground">{employee.role}</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </DashboardLayout>
   );
 }
