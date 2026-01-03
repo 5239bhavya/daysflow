@@ -36,6 +36,9 @@ interface Profile {
   job_title: string | null;
   basic_salary: number | null;
   created_at: string | null;
+  about: string | null;
+  certification: string | null;
+  skill: string | null;
 }
 
 interface UserRole {
@@ -75,6 +78,9 @@ export default function Employees() {
     basic_salary: '',
     date_of_birth: '',
     hire_date: '',
+    about: '',
+    certification: '',
+    skill: '',
   });
 
   if (role !== 'admin') {
@@ -165,6 +171,9 @@ export default function Employees() {
       basic_salary: employee.basic_salary?.toString() || '',
       date_of_birth: employee.date_of_birth || '',
       hire_date: employee.hire_date || '',
+      about: employee.about || '',
+      certification: employee.certification || '',
+      skill: employee.skill || '',
     });
     setDetailsOpen(false);
     setEditOpen(true);
@@ -193,6 +202,9 @@ export default function Employees() {
           basic_salary: editForm.basic_salary ? parseFloat(editForm.basic_salary) : null,
           date_of_birth: editForm.date_of_birth || null,
           hire_date: editForm.hire_date || null,
+          about: editForm.about || null,
+          certification: editForm.certification || null,
+          skill: editForm.skill || null,
         })
         .eq('id', selectedEmployee.id);
 
@@ -467,6 +479,27 @@ export default function Employees() {
 
                 <Separator />
 
+                {/* About & Skills */}
+                <div>
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase mb-3">Profile</h4>
+                  <div className="grid gap-3">
+                    <div>
+                      <p className="text-sm text-muted-foreground">About</p>
+                      <p className="font-medium">{selectedEmployee.about || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Skills</p>
+                      <p className="font-medium">{selectedEmployee.skill || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Certifications</p>
+                      <p className="font-medium">{selectedEmployee.certification || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
                 {/* Action Buttons */}
                 <div className="flex gap-3">
                   <Button 
@@ -590,6 +623,39 @@ export default function Employees() {
                     onChange={(e) => setEditForm({ ...editForm, hire_date: e.target.value })}
                   />
                 </div>
+              </div>
+
+              <Separator className="my-2" />
+              <h4 className="text-sm font-semibold text-muted-foreground">Profile Information</h4>
+
+              <div className="space-y-2">
+                <Label htmlFor="about">About</Label>
+                <Input
+                  id="about"
+                  placeholder="Brief description about the employee"
+                  value={editForm.about}
+                  onChange={(e) => setEditForm({ ...editForm, about: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="skill">Skills</Label>
+                <Input
+                  id="skill"
+                  placeholder="e.g., JavaScript, Project Management"
+                  value={editForm.skill}
+                  onChange={(e) => setEditForm({ ...editForm, skill: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="certification">Certifications</Label>
+                <Input
+                  id="certification"
+                  placeholder="e.g., PMP, AWS Certified"
+                  value={editForm.certification}
+                  onChange={(e) => setEditForm({ ...editForm, certification: e.target.value })}
+                />
               </div>
             </div>
             <DialogFooter>

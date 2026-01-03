@@ -279,9 +279,11 @@ export type Database = {
       }
       profiles: {
         Row: {
+          about: string | null
           address: string | null
           avatar_url: string | null
           basic_salary: number | null
+          certification: string | null
           company_id: string | null
           created_at: string | null
           date_of_birth: string | null
@@ -294,11 +296,14 @@ export type Database = {
           job_title: string | null
           last_name: string
           phone: string | null
+          skill: string | null
         }
         Insert: {
+          about?: string | null
           address?: string | null
           avatar_url?: string | null
           basic_salary?: number | null
+          certification?: string | null
           company_id?: string | null
           created_at?: string | null
           date_of_birth?: string | null
@@ -311,11 +316,14 @@ export type Database = {
           job_title?: string | null
           last_name: string
           phone?: string | null
+          skill?: string | null
         }
         Update: {
+          about?: string | null
           address?: string | null
           avatar_url?: string | null
           basic_salary?: number | null
+          certification?: string | null
           company_id?: string | null
           created_at?: string | null
           date_of_birth?: string | null
@@ -328,6 +336,7 @@ export type Database = {
           job_title?: string | null
           last_name?: string
           phone?: string | null
+          skill?: string | null
         }
         Relationships: [
           {
