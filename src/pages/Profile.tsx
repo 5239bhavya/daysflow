@@ -11,7 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Loader2, UserCircle, Lock, Camera, Edit, Save, X, 
-  MapPin, Phone, Briefcase, Calendar, Building, Mail 
+  MapPin, Phone, Briefcase, Calendar, Building, Mail,
+  Award, Lightbulb, FileText
 } from 'lucide-react';
 import { z } from 'zod';
 import { useAvatarUpload } from '@/hooks/useAvatarUpload';
@@ -31,6 +32,9 @@ interface ProfileData {
   address: string;
   date_of_birth: string;
   job_title: string;
+  about: string;
+  skill: string;
+  certification: string;
 }
 
 export default function Profile() {
@@ -53,6 +57,9 @@ export default function Profile() {
     address: '',
     date_of_birth: '',
     job_title: '',
+    about: '',
+    skill: '',
+    certification: '',
   });
 
   // Load current profile data into edit form
@@ -63,6 +70,9 @@ export default function Profile() {
         address: (profile as any).address || '',
         date_of_birth: (profile as any).date_of_birth || '',
         job_title: (profile as any).job_title || '',
+        about: (profile as any).about || '',
+        skill: (profile as any).skill || '',
+        certification: (profile as any).certification || '',
       });
     }
   }, [profile]);
@@ -136,6 +146,9 @@ export default function Profile() {
         address: editData.address || null,
         date_of_birth: editData.date_of_birth || null,
         job_title: editData.job_title || null,
+        about: editData.about || null,
+        skill: editData.skill || null,
+        certification: editData.certification || null,
       })
       .eq('id', profile.id);
 
@@ -163,6 +176,9 @@ export default function Profile() {
       address: (profile as any)?.address || '',
       date_of_birth: (profile as any)?.date_of_birth || '',
       job_title: (profile as any)?.job_title || '',
+      about: (profile as any)?.about || '',
+      skill: (profile as any)?.skill || '',
+      certification: (profile as any)?.certification || '',
     });
     setIsEditing(true);
   };
@@ -349,6 +365,62 @@ export default function Profile() {
                 ) : (
                   <p className="font-medium">{(profile as any)?.address || '-'}</p>
                 )}
+              </div>
+
+              <Separator />
+
+              {/* About, Skills, Certifications */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase">About & Skills</h4>
+                
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    About Me
+                  </Label>
+                  {isEditing ? (
+                    <Textarea
+                      value={editData.about}
+                      onChange={(e) => setEditData({ ...editData, about: e.target.value })}
+                      placeholder="Tell us about yourself..."
+                      rows={3}
+                    />
+                  ) : (
+                    <p className="font-medium">{(profile as any)?.about || '-'}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Lightbulb className="h-4 w-4" />
+                    Skills
+                  </Label>
+                  {isEditing ? (
+                    <Input
+                      value={editData.skill}
+                      onChange={(e) => setEditData({ ...editData, skill: e.target.value })}
+                      placeholder="e.g., JavaScript, Project Management, Excel"
+                    />
+                  ) : (
+                    <p className="font-medium">{(profile as any)?.skill || '-'}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Award className="h-4 w-4" />
+                    Certifications
+                  </Label>
+                  {isEditing ? (
+                    <Input
+                      value={editData.certification}
+                      onChange={(e) => setEditData({ ...editData, certification: e.target.value })}
+                      placeholder="e.g., PMP, AWS Certified, Google Analytics"
+                    />
+                  ) : (
+                    <p className="font-medium">{(profile as any)?.certification || '-'}</p>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>
